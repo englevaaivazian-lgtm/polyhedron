@@ -1,4 +1,4 @@
-from math import sin, cos
+from math import sin, cos, sqrt
 
 
 class R3:
@@ -41,6 +41,10 @@ class R3:
             self.y * other.z - self.z * other.y,
             self.z * other.x - self.x * other.z,
             self.x * other.y - self.y * other.x)
+
+    def distance(self, other):
+        diff = self - other
+        return sqrt(diff.dot(diff))
 
 
 if __name__ == "__main__":  # pragma: no cover

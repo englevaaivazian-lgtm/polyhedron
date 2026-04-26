@@ -25,11 +25,23 @@ class Segment:
         return self
 
     # Разность отрезков
-    # Разность двух отрезков всегда является списком из двух отрезков!
+    # Разность двух отрезков всегда
+    # является списком из двух отрезков!
     def subtraction(self, other):
-        return [Segment(
-            self.beg, self.fin if self.fin < other.beg else other.beg),
-            Segment(self.beg if self.beg > other.fin else other.fin, self.fin)]
+        return [
+            Segment(
+                self.beg,
+                self.fin if self.fin < other.beg else other.beg
+            ),
+            Segment(
+                self.beg if self.beg > other.fin else other.fin,
+                self.fin
+            )
+        ]
+    # Длина отрезка
+
+    def length_for_segment(self):
+        return self.fin - self.beg
 
 
 class Edge:
@@ -37,13 +49,14 @@ class Edge:
     # Начало и конец стандартного одномерного отрезка
     SBEG, SFIN = 0.0, 1.0
 
-    # Параметры конструктора: начало и конец ребра (точки в R3)
-    def __init__(self, beg, fin):
+    # Добавляем новые параметры в __init__
+    def __init__(self, beg, fin, orig_beg, orig_fin):
         self.beg, self.fin = beg, fin
-        # Список «просветов»
+        self.orig_beg, self.orig_fin = orig_beg, orig_fin
         self.gaps = [Segment(Edge.SBEG, Edge.SFIN)]
 
     # Учёт тени от одной грани
+
     def shadow(self, facet):
         # «Вертикальная» грань не затеняет ничего
         if facet.is_vertical():
@@ -60,7 +73,8 @@ class Edge:
                 facet.vertexes[0], facet.h_normal()))
         if shade.is_degenerate():
             return
-        # Преобразование списка «просветов», если тень невырождена
+        # Преобразование списка «просветов»,
+        # если тень невырождена
         gaps = [s.subtraction(shade) for s in self.gaps]
         self.gaps = [
             s for s in reduce(add, gaps, []) if not s.is_degenerate()]
@@ -69,7 +83,8 @@ class Edge:
     def r3(self, t):
         return self.beg * (Edge.SFIN - t) + self.fin * t
 
-    # Пересечение ребра с полупространством, задаваемым точкой (a)
+    # Пересечение ребра с полупространством,
+    # задаваемым точкой (a)
     # на плоскости и вектором внешней нормали (n) к ней
     def intersect_edge_with_normal(self, a, n):
         f0, f1 = n.dot(self.beg - a), n.dot(self.fin - a)
@@ -79,6 +94,30 @@ class Edge:
             return Segment(Edge.SBEG, Edge.SFIN)
         x = - f0 / (f1 - f0)
         return Segment(Edge.SBEG, x) if f0 < 0.0 else Segment(x, Edge.SFIN)
+
+    # Считаем длину затененных частей для одного ребра
+    def length_for_edge(self):
+        summary_gap = 0.0
+        # Проходимся по всем просветам ребра
+        for gap in self.gaps:
+            summary_gap += gap.length_for_segment()
+
+        # Проверяем, что ребро не полностью
+        # в тени или на свету
+        if 0.0 < summary_gap < 1.0:
+            # Возвращаем реальную длину тени
+            # без учета маштабирования
+            d = self.orig_beg.distance(self.orig_fin)
+            return (1.0 - summary_gap) * d
+
+        else:
+            # В противном случае не считаем
+            # эту часть по требованию задачи
+            return 0.0
+
+    # Находим центр ребра
+    def find_center_edge(self):
+        return (self.orig_beg + self.orig_fin) * 0.5
 
 
 class Facet:
@@ -126,7 +165,8 @@ class Polyedr:
     def __init__(self, file):
 
         # списки вершин, рёбер и граней полиэдра
-        self.vertexes, self.edges, self.facets = [], [], []
+        self.vertexes, self.orig_vertexes = [], []
+        self.edges, self.facets = [], []
 
         # список строк файла
         with open(file) as f:
@@ -144,6 +184,7 @@ class Polyedr:
                 elif i < nv + 2:
                     # задание всех вершин полиэдра
                     x, y, z = (float(x) for x in line.split())
+                    self.orig_vertexes.append(R3(x, y, z))
                     self.vertexes.append(R3(x, y, z).rz(
                         alpha).ry(beta).rz(gamma) * c)
                 else:
@@ -153,13 +194,41 @@ class Polyedr:
                     size = int(buf.pop(0))
                     # массив вершин этой грани
                     vertexes = list(self.vertexes[int(n) - 1] for n in buf)
+                    # массив оригинальных вершин этой грани
+                    orig_vertexes = list(
+                        self.orig_vertexes[int(n) - 1] for n in buf
+                    )
                     # задание рёбер грани
+
                     for n in range(size):
-                        self.edges.append(Edge(vertexes[n - 1], vertexes[n]))
+                        self.edges.append(Edge(
+                            # Искаженные
+                            vertexes[n - 1], vertexes[n],
+                            # Оригинальные
+                            orig_vertexes[n - 1], orig_vertexes[n]
+                        ))
                     # задание самой грани
                     self.facets.append(Facet(vertexes))
 
+    # Считаем сумму длин всех невидымых частей,
+    # частично видимых отрезков
+    def lenght_shadow(self):
+        total_sum = 0.0
+
+        # Проходимся по всем ребрам
+        for e in self.edges:
+            # Ищем центр ребра
+            center = e.find_center_edge()
+
+            # Проверяем что центр лежит внтури сферы
+            if center.x**2 + center.y**2 + center.z**2 < 4:
+                # Тогда считаем длины затенненых частей
+                total_sum += e.length_for_edge()
+
+        return total_sum
+
     # Метод изображения полиэдра
+
     def draw(self, tk):  # pragma: no cover
         tk.clean()
         for e in self.edges:
