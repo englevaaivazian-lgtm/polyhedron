@@ -25,7 +25,7 @@ class TestPolyedrCoverage(unittest.TestCase):
         """Частичное перекрытие, центр внутри сферы."""
         # Центр нижнего блока в (0, 0, -0.5), заслонка перекрывает часть ребер
         ans = self.get_ans("Polyedr_test1")
-        self.assertGreater(ans, 0.0)
+        self.assertEqual(ans, 8.0)
 
     def test_polyedr_2(self):
         """Заслонка смещена, перекрытия нет или оно вне сферы."""
@@ -38,7 +38,7 @@ class TestPolyedrCoverage(unittest.TestCase):
         """Большая заслонка, полное или значительное перекрытие."""
         # Заслонка от -3 до 3 по X [cite: 3]
         ans = self.get_ans("Polyedr_test3")
-        self.assertGreater(ans, 0.0)
+        self.assertEqual(ans, 8.0)
 
     def test_polyedr_4(self):
         """Объекты далеко (X=8..12), центры ребер вне сферы."""
@@ -50,7 +50,7 @@ class TestPolyedrCoverage(unittest.TestCase):
         """Смещение по Y и Z, проверка точности расчета центра."""
         # Центр нижнего блока смещен по Y на 1.0 [cite: 5]
         ans = self.get_ans("Polyedr_test5")
-        self.assertIsNotNone(ans)
+        self.assertEqual(ans, 2.0)
 
 
 if __name__ == '__main__':  # pragma: no cover
